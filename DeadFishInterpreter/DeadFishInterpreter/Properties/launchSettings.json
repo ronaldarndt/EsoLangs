@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DeadFishInterpreter": {
+      "commandName": "Project",
+      "commandLineArgs": "../../../HelloWorld.df"
+    }
+  }
+}
