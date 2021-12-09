@@ -1,28 +1,7 @@
-import * as readline from 'readline';
-import { stdin as input, stdout as output } from 'process';
+import { stdout as output } from 'process';
 import { readFileSync } from 'fs';
-
-const rlInterface = readline.createInterface({ input, output });
-const rl = text =>
-  new Promise(res => {
-    rlInterface.question(text, res);
-  });
-
-class Accumulator {
-  value = 0;
-
-  getConstrained() {
-    return this.value > 255 || this.value < 0 ? 0 : this.value;
-  }
-
-  add(n) {
-    this.value += n;
-  }
-
-  set(n) {
-    this.value = n;
-  }
-}
+import { readlineAsync, random, stackPeek } from './utils.mjs';
+import Accumulator from './accumulator.mjs';
 
 const OPS = {
   SUS: 0,
@@ -51,25 +30,20 @@ const COLORS = {
 
 const colorKeys = Object.values(COLORS);
 
-function random(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 function parse(text) {
-  text = text.replace(/[\n?]/g, ' ').split(' ');
-
-  const stack = [];
-  const jumps = {};
   const ops = text
+    .replace(/[\n\r?]/g, ' ')
+    .split(' ')
     .map(x => {
       const token = x.trim().toUpperCase();
       const op = OPS[token];
 
-      if (op !== undefined) return op;
-
-      return COLORS[token];
+      return op !== undefined ? op : COLORS[token];
     })
     .filter(x => x !== undefined);
+
+  const stack = [];
+  const jumps = {};
 
   for (let pointer = 0; pointer < ops.length; pointer++) {
     const op = ops[pointer];
@@ -87,82 +61,83 @@ function parse(text) {
   return { ops, jumps };
 }
 
+async function executeSUSOp({ acc, stack, lastColor }) {
+  function randomPop() {
+    const n = random(0, acc.value);
+
+    for (let i = 0; i < n; i++) {
+      stack.pop();
+    }
+  }
+
+  switch (lastColor) {
+    case COLORS.RED:
+      acc.add(1);
+      break;
+    case COLORS.BLUE:
+      stack.push(acc.value);
+      break;
+    case COLORS.PURPLE:
+      stack.pop();
+      break;
+    case COLORS.GREEN:
+      output.write(String.fromCharCode(stackPeek(stack)));
+      break;
+    case COLORS.YELLOW:
+      stack.push((await readlineAsync('input: ')).charCodeAt(0));
+      break;
+    case COLORS.CYAN:
+      randomPop();
+      break;
+    case COLORS.BLACK:
+      output.write(stackPeek(stack));
+      break;
+    case COLORS.WHITE:
+      acc.add(-1);
+      break;
+    case COLORS.BROWN:
+      acc.set(stackPeek(stack));
+      break;
+    case COLORS.LIME:
+      stack[stack.length - 1] = stackPeek(stack) * 2;
+      break;
+    case COLORS.PINK:
+      acc.set(0);
+      break;
+    case COLORS.ORANGE:
+      acc.add(10);
+      break;
+  }
+}
+
 async function execute({ ops, jumps }) {
   const stack = [];
   const acc1 = new Accumulator();
   const acc2 = new Accumulator();
   let lastColor = COLORS.NONE;
 
-  function getStackTop() {
-    return stack.slice(-1)[0];
-  }
-
   for (let pointer = 0; pointer < ops.length; pointer++) {
     const op = ops[pointer];
 
+    function jumpPointer() {
+      pointer = jumps[pointer] - 1;
+    }
+
     function WHO() {
-      if (getStackTop() === acc2.getConstrained()) {
-        pointer = jumps[pointer] - 1;
-      }
+      if (stackPeek(stack) === acc2.getConstrained()) jumpPointer();
     }
 
     function WHERE() {
-      if (getStackTop() !== acc2.getConstrained()) {
-        pointer = jumps[pointer] - 1;
-      }
+      if (stackPeek(stack) !== acc2.getConstrained()) jumpPointer();
     }
 
-    async function SUS() {
-      function randomPop() {
-        const n = random(0, acc1.value);
-        for (let i = 0; i < n; i++) {
-          stack.pop();
-        }
-      }
-
-      switch (lastColor) {
-        case COLORS.RED:
-          acc1.add(1);
-          break;
-        case COLORS.BLUE:
-          stack.push(acc1.value);
-          break;
-        case COLORS.PURPLE:
-          stack.pop();
-          break;
-        case COLORS.GREEN:
-          output.write(String.fromCharCode(getStackTop()));
-          break;
-        case COLORS.YELLOW:
-          stack.push((await rl('input: ')).charCodeAt(0));
-          break;
-        case COLORS.CYAN:
-          randomPop();
-          break;
-        case COLORS.BLACK:
-          output.write(getStackTop());
-          break;
-        case COLORS.WHITE:
-          acc1.add(-1);
-          break;
-        case COLORS.BROWN:
-          acc1.set(getStackTop());
-          break;
-        case COLORS.LIME:
-          stack[stack.length - 1] = getStackTop() * 2;
-          break;
-        case COLORS.PINK:
-          acc1.set(0);
-          break;
-        case COLORS.ORANGE:
-          acc1.add(10);
-          break;
-      }
+    function setLastColor() {
+      lastColor = colorKeys.includes(op) ? op : COLORS.NONE;
     }
 
     switch (op) {
       case OPS.SUS:
-        await SUS();
+        await executeSUSOp({ acc: acc1, lastColor, stack });
         break;
       case OPS.VENTED:
         acc2.add(10);
@@ -178,10 +153,10 @@ async function execute({ ops, jumps }) {
         break;
       case OPS.WHERE:
         WHERE();
-    }
-
-    if (colorKeys.includes(op)) {
-      lastColor = op;
+        break;
+      default:
+        setLastColor();
+        break;
     }
   }
 }
@@ -191,5 +166,3 @@ const program = readFileSync('./helloWorld.am', { encoding: 'utf8' });
 const info = parse(program);
 
 await execute(info);
-
-rlInterface.close();
