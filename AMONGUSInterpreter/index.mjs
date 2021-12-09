@@ -131,7 +131,7 @@ async function execute({ ops, jumps }) {
           stack.pop();
           break;
         case COLORS.GREEN:
-          console.log(String.fromCharCode(getStackTop()));
+          output.write(String.fromCharCode(getStackTop()));
           break;
         case COLORS.YELLOW:
           stack.push((await rl('input: ')).charCodeAt(0));
@@ -140,7 +140,7 @@ async function execute({ ops, jumps }) {
           randomPop();
           break;
         case COLORS.BLACK:
-          console.log(getStackTop());
+          output.write(getStackTop());
           break;
         case COLORS.WHITE:
           acc1.add(-1);
