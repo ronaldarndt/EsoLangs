@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "EmmentalInterpreter": {
+      "commandName": "Project",
+      "commandLineArgs": "../../../examples/Cat.em"
+    }
+  }
+}
